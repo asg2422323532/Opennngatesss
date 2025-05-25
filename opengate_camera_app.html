@@ -1,0 +1,520 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Open Gate Camera</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #000;
+            color: #fff;
+            overflow: hidden;
+            height: 100vh;
+        }
+
+        .camera-container {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .status-bar {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 50px;
+            background: linear-gradient(180deg, rgba(0,0,0,0.8) 0%, rgba(0,0,0,0) 100%);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px 20px;
+            z-index: 10;
+        }
+
+        .mode-indicator {
+            background: rgba(255,255,255,0.1);
+            backdrop-filter: blur(10px);
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 14px;
+            font-weight: 600;
+        }
+
+        .open-gate-badge {
+            background: linear-gradient(135deg, #ff6b6b, #ee5a24);
+            padding: 4px 8px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .viewfinder {
+            flex: 1;
+            position: relative;
+            background: #111;
+            overflow: hidden;
+        }
+
+        #video {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            transform: scaleX(-1); /* Mirror for front-facing feel */
+        }
+
+        .open-gate-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            pointer-events: none;
+            z-index: 5;
+        }
+
+        .gate-frame {
+            position: absolute;
+            border: 2px solid rgba(255, 107, 107, 0.6);
+            border-style: dashed;
+            animation: pulse 2s ease-in-out infinite;
+        }
+
+        .full-gate {
+            top: 5%;
+            left: 5%;
+            right: 5%;
+            bottom: 20%;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 0.6; }
+            50% { opacity: 1; }
+        }
+
+        .controls {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            height: 120px;
+            background: linear-gradient(0deg, rgba(0,0,0,0.9) 0%, rgba(0,0,0,0) 100%);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 30px;
+        }
+
+        .control-group {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .mode-selector {
+            display: flex;
+            gap: 20px;
+        }
+
+        .mode-btn {
+            background: none;
+            border: none;
+            color: rgba(255,255,255,0.6);
+            font-size: 16px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .mode-btn.active {
+            color: #fff;
+            font-weight: 700;
+        }
+
+        .capture-btn {
+            width: 80px;
+            height: 80px;
+            border: 4px solid #fff;
+            border-radius: 50%;
+            background: rgba(255,255,255,0.1);
+            cursor: pointer;
+            transition: all 0.2s ease;
+            position: relative;
+        }
+
+        .capture-btn:active {
+            transform: scale(0.95);
+        }
+
+        .capture-btn.recording {
+            border-color: #ff4757;
+            background: rgba(255, 71, 87, 0.2);
+        }
+
+        .capture-btn.recording::after {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 24px;
+            height: 24px;
+            background: #ff4757;
+            border-radius: 4px;
+        }
+
+        .settings-btn {
+            width: 50px;
+            height: 50px;
+            border: 2px solid rgba(255,255,255,0.3);
+            border-radius: 50%;
+            background: rgba(255,255,255,0.1);
+            color: #fff;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+        }
+
+        .recording-indicator {
+            position: absolute;
+            top: 60px;
+            left: 20px;
+            display: none;
+            align-items: center;
+            gap: 8px;
+            background: rgba(0,0,0,0.7);
+            padding: 8px 12px;
+            border-radius: 20px;
+            backdrop-filter: blur(10px);
+        }
+
+        .recording-indicator.active {
+            display: flex;
+        }
+
+        .rec-dot {
+            width: 8px;
+            height: 8px;
+            background: #ff4757;
+            border-radius: 50%;
+            animation: blink 1s ease-in-out infinite;
+        }
+
+        @keyframes blink {
+            0%, 50% { opacity: 1; }
+            51%, 100% { opacity: 0.3; }
+        }
+
+        .format-info {
+            position: absolute;
+            bottom: 140px;
+            left: 20px;
+            background: rgba(0,0,0,0.6);
+            padding: 8px 12px;
+            border-radius: 8px;
+            font-size: 12px;
+            backdrop-filter: blur(10px);
+        }
+
+        .toast {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0,0,0,0.8);
+            padding: 16px 24px;
+            border-radius: 12px;
+            font-size: 16px;
+            backdrop-filter: blur(10px);
+            opacity: 0;
+            transition: opacity 0.3s ease;
+            z-index: 20;
+        }
+
+        .toast.show {
+            opacity: 1;
+        }
+    </style>
+</head>
+<body>
+    <div class="camera-container">
+        <div class="status-bar">
+            <div class="mode-indicator">
+                <span class="open-gate-badge">Open Gate</span>
+            </div>
+            <div style="font-size: 14px; font-weight: 500;">4:3 Full Sensor</div>
+        </div>
+
+        <div class="recording-indicator" id="recordingIndicator">
+            <div class="rec-dot"></div>
+            <span id="recordingTime">00:00</span>
+        </div>
+
+        <div class="viewfinder">
+            <video id="video" autoplay muted playsinline></video>
+            <div class="open-gate-overlay">
+                <div class="gate-frame full-gate"></div>
+            </div>
+        </div>
+
+        <div class="format-info">
+            <div>Open Gate: Full sensor utilization</div>
+            <div>Format: 4:3 aspect ratio</div>
+        </div>
+
+        <div class="controls">
+            <div class="control-group">
+                <div class="mode-selector">
+                    <button class="mode-btn" data-mode="photo">PHOTO</button>
+                    <button class="mode-btn active" data-mode="video">VIDEO</button>
+                    <button class="mode-btn" data-mode="cinematic">CINEMA</button>
+                </div>
+            </div>
+
+            <div class="capture-btn" id="captureBtn"></div>
+
+            <button class="settings-btn">⚙</button>
+        </div>
+
+        <div class="toast" id="toast"></div>
+    </div>
+
+    <script>
+        class OpenGateCameraApp {
+            constructor() {
+                this.video = document.getElementById('video');
+                this.captureBtn = document.getElementById('captureBtn');
+                this.recordingIndicator = document.getElementById('recordingIndicator');
+                this.recordingTime = document.getElementById('recordingTime');
+                this.toast = document.getElementById('toast');
+                
+                this.isRecording = false;
+                this.mediaRecorder = null;
+                this.recordingStartTime = null;
+                this.recordingTimer = null;
+                this.currentMode = 'video';
+                
+                this.init();
+            }
+
+            async init() {
+                await this.setupCamera();
+                this.setupEventListeners();
+                this.showToast('Open Gate mode activated - Full sensor recording enabled');
+            }
+
+            async setupCamera() {
+                try {
+                    // Request camera with high resolution for Open Gate simulation
+                    const constraints = {
+                        video: {
+                            width: { ideal: 1920 },
+                            height: { ideal: 1440 }, // 4:3 aspect ratio for Open Gate
+                            frameRate: { ideal: 24 },
+                            facingMode: 'environment' // Back camera preferred
+                        },
+                        audio: true
+                    };
+
+                    const stream = await navigator.mediaDevices.getUserMedia(constraints);
+                    this.video.srcObject = stream;
+                    this.stream = stream;
+
+                    // Log actual resolution for Open Gate info
+                    const track = stream.getVideoTracks()[0];
+                    const settings = track.getSettings();
+                    console.log('Open Gate Resolution:', settings.width, 'x', settings.height);
+                    
+                } catch (error) {
+                    console.error('Camera access denied:', error);
+                    this.showToast('Camera access required for Open Gate recording');
+                }
+            }
+
+            setupEventListeners() {
+                this.captureBtn.addEventListener('click', () => {
+                    if (this.currentMode === 'video') {
+                        this.toggleRecording();
+                    } else {
+                        this.capturePhoto();
+                    }
+                });
+
+                // Mode switching
+                document.querySelectorAll('.mode-btn').forEach(btn => {
+                    btn.addEventListener('click', (e) => {
+                        document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
+                        btn.classList.add('active');
+                        this.currentMode = btn.dataset.mode;
+                        this.updateModeUI();
+                    });
+                });
+
+                // Settings button
+                document.querySelector('.settings-btn').addEventListener('click', () => {
+                    this.showToast('Open Gate Settings: Full sensor capture enabled');
+                });
+            }
+
+            async toggleRecording() {
+                if (!this.isRecording) {
+                    await this.startRecording();
+                } else {
+                    this.stopRecording();
+                }
+            }
+
+            async startRecording() {
+                try {
+                    // Configure MediaRecorder for high quality Open Gate recording
+                    const options = {
+                        mimeType: 'video/webm;codecs=vp9',
+                        videoBitsPerSecond: 10000000 // 10 Mbps for high quality
+                    };
+
+                    this.mediaRecorder = new MediaRecorder(this.stream, options);
+                    this.recordedChunks = [];
+
+                    this.mediaRecorder.ondataavailable = (event) => {
+                        if (event.data.size > 0) {
+                            this.recordedChunks.push(event.data);
+                        }
+                    };
+
+                    this.mediaRecorder.onstop = () => {
+                        this.saveRecording();
+                    };
+
+                    this.mediaRecorder.start();
+                    this.isRecording = true;
+                    this.recordingStartTime = Date.now();
+                    
+                    this.captureBtn.classList.add('recording');
+                    this.recordingIndicator.classList.add('active');
+                    this.startRecordingTimer();
+                    
+                    this.showToast('Open Gate recording started');
+
+                } catch (error) {
+                    console.error('Recording failed:', error);
+                    this.showToast('Recording failed - Open Gate format not supported');
+                }
+            }
+
+            stopRecording() {
+                if (this.mediaRecorder && this.isRecording) {
+                    this.mediaRecorder.stop();
+                    this.isRecording = false;
+                    
+                    this.captureBtn.classList.remove('recording');
+                    this.recordingIndicator.classList.remove('active');
+                    this.stopRecordingTimer();
+                    
+                    this.showToast('Open Gate recording saved');
+                }
+            }
+
+            startRecordingTimer() {
+                this.recordingTimer = setInterval(() => {
+                    const elapsed = Date.now() - this.recordingStartTime;
+                    const minutes = Math.floor(elapsed / 60000);
+                    const seconds = Math.floor((elapsed % 60000) / 1000);
+                    this.recordingTime.textContent = 
+                        `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+                }, 1000);
+            }
+
+            stopRecordingTimer() {
+                if (this.recordingTimer) {
+                    clearInterval(this.recordingTimer);
+                    this.recordingTimer = null;
+                }
+                this.recordingTime.textContent = '00:00';
+            }
+
+            saveRecording() {
+                const blob = new Blob(this.recordedChunks, { type: 'video/webm' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `opengate_recording_${Date.now()}.webm`;
+                a.click();
+                URL.revokeObjectURL(url);
+            }
+
+            capturePhoto() {
+                const canvas = document.createElement('canvas');
+                const ctx = canvas.getContext('2d');
+                
+                // Set canvas to 4:3 aspect ratio for Open Gate
+                canvas.width = this.video.videoWidth;
+                canvas.height = this.video.videoHeight;
+                
+                ctx.drawImage(this.video, 0, 0);
+                
+                canvas.toBlob((blob) => {
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `opengate_photo_${Date.now()}.jpg`;
+                    a.click();
+                    URL.revokeObjectURL(url);
+                });
+                
+                this.showToast('Open Gate photo captured');
+            }
+
+            updateModeUI() {
+                const formatInfo = document.querySelector('.format-info');
+                switch(this.currentMode) {
+                    case 'photo':
+                        formatInfo.innerHTML = `
+                            <div>Open Gate: Full sensor photo</div>
+                            <div>Format: 4:3 maximum resolution</div>
+                        `;
+                        break;
+                    case 'video':
+                        formatInfo.innerHTML = `
+                            <div>Open Gate: Full sensor utilization</div>
+                            <div>Format: 4:3 aspect ratio</div>
+                        `;
+                        break;
+                    case 'cinematic':
+                        formatInfo.innerHTML = `
+                            <div>Open Gate: Cinematic mode</div>
+                            <div>Format: Full sensor with crop options</div>
+                        `;
+                        break;
+                }
+            }
+
+            showToast(message) {
+                this.toast.textContent = message;
+                this.toast.classList.add('show');
+                setTimeout(() => {
+                    this.toast.classList.remove('show');
+                }, 3000);
+            }
+        }
+
+        // Initialize the app when the page loads
+        document.addEventListener('DOMContentLoaded', () => {
+            new OpenGateCameraApp();
+        });
+    </script>
+</body>
+</html>
